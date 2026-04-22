@@ -9,7 +9,7 @@
       <hr align="right" width="72" style="margin:0.75em 0 0 auto;opacity:0.45" />
     </td>
     <td align="left" valign="middle" style="padding-left:1.5em">
-      <a href="https://ghostvault.bizs.app/"><img src="https://raw.githubusercontent.com/Z-ghostshell/GhostVault/main/dashboard/public/favicon.svg" width="128" height="128" alt="Ghost Vault" /></a>
+      <a href="https://ghostvault.bizs.app/"><img src="https://ghost.bizs.app/resource/ghost/selective-icon/suitcase.webp" width="128" height="128" alt="Ghost Vault" /></a>
     </td>
   </tr>
 </table>
