@@ -1,12 +1,28 @@
-# Ghost Vault
+<table align="center">
+  <tr>
+    <td align="right" valign="middle" style="padding-right:1.5em">
+      <span style="display:inline-block;border:1px solid;border-radius:999px;padding:0.15em 0.85em 0.3em;line-height:1">
+        <span style="font-size:3em;font-weight:700;letter-spacing:-0.02em">Ghost&nbsp;Vault</span>
+      </span>
+      <br /><br />
+      <span style="font-size:0.95em;opacity:0.85">local memory for your models</span>
+      <hr align="right" width="72" style="margin:0.75em 0 0 auto;opacity:0.45" />
+    </td>
+    <td align="left" valign="middle" style="padding-left:1.5em">
+      <a href="https://ghostvault.bizs.app/"><img src="https://raw.githubusercontent.com/Z-ghostshell/GhostVault/main/dashboard/public/favicon.svg" width="128" height="128" alt="Ghost Vault" /></a>
+    </td>
+  </tr>
+</table>
 
-[![Ghost Vault](https://raw.githubusercontent.com/Z-ghostshell/GhostVault/main/dashboard/public/favicon.svg)](https://ghostvault.bizs.app/)
+<p align="center">
+  <strong>Your memory, your machine</strong> — the durable record of your work lives in a layer <em>you</em> govern, not as a retention feature in someone else’s account. <strong>Ghost Vault</strong> is a <strong>user-held memory service</strong>: connect the same vault to Claude, ChatGPT, Gemini, Cursor, and the rest through <strong>open, swappable interfaces</strong> (OpenAPI, Model Context Protocol) so the model sees <strong>your</strong> ground truth. Switching tools should not mean starting from zero.
+</p>
 
-**Site:** [https://ghostvault.bizs.app/](https://ghostvault.bizs.app/) — product overview, tutorial (including the Anthropic remote MCP connector), and blog.
+<p align="center">
+  <a href="https://ghostvault.bizs.app/">ghostvault.bizs.app</a> — product overview, tutorial (including the Anthropic remote MCP), and blog
+</p>
 
-**The idea:** the durable record of your work should live in a layer *you* govern—not as a retention feature inside someone else’s cloud account. Ghost Vault is a **user-held memory service**: your notes, decisions, and context stay **on your machine** (or infra you control). The models you already use—Claude, ChatGPT, Gemini, Cursor, and the rest—connect through **open, swappable interfaces** (HTTP/OpenAPI, Model Context Protocol) so the assistant sees **your** ground truth, not a fresh session every time. Switching tools should not mean starting from zero.
-
-**What it is:** a small **Go** service plus **Postgres** (vectors + full-text), **hybrid retrieval**, and **optional encryption at rest** so ciphertext stays on disk until you unlock. Integrations are documented under [`docs/integration/`](docs/integration/) (MCP, ChatGPT Actions, Gemini, and similar).
+**What it is:** a small **Go** service plus **Postgres** (vectors + full-text), **hybrid retrieval**, and **optional encryption at rest** (ciphertext on disk until you unlock). Integrations: [`docs/integration/`](docs/integration/) (MCP, ChatGPT Actions, Gemini, and similar).
 
 ## Run it
 
