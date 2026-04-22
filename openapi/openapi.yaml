@@ -1,0 +1,389 @@
+openapi: 3.1.0
+info:
+  title: Ghost Vault API
+  version: 1.0.0
+  description: |
+    Local memory service for ChatGPT Actions (custom GPT). Replace `servers.url` with your HTTPS tunnel hostname.
+    Encrypted vaults — use the `session_token` from `POST /v1/vault/unlock` as the Bearer token in Custom GPT authentication.
+servers:
+  - url: https://YOUR-TUNNEL.example.com
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      security: []
+      responses:
+        "200":
+          description: OK
+  /readyz:
+    get:
+      summary: Readiness
+      security: []
+      responses:
+        "200":
+          description: OK
+        "503":
+          description: Not ready
+  /v1/vault/init:
+    post:
+      summary: Initialize vault (once)
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  description: Required when GV_ENCRYPTION=on
+      responses:
+        "201":
+          description: Created
+  /v1/vault/unlock:
+    post:
+      summary: Unlock vault
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Session issued
+  /v1/vault/lock:
+    post:
+      summary: Lock vault (invalidate session)
+      responses:
+        "204":
+          description: No content
+  /v1/tokens/actions:
+    post:
+      summary: Mint scoped token (encryption off only)
+      responses:
+        "201":
+          description: Token created
+  /v1/retrieve:
+    post:
+      summary: memory_search — hybrid retrieve
+      operationId: memory_search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetrieveRequest"
+      responses:
+        "200":
+          description: Results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrieveResponse"
+  /v1/ingest:
+    post:
+      summary: memory_save — store memories
+      operationId: memory_save
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestRequest"
+      responses:
+        "200":
+          description: Stored chunk ids
+  /v1/stats:
+    get:
+      operationId: memory_stats
+      summary: Vault statistics and recent ingest activity
+      description: Returns aggregate chunk counts, ingest history windows, session message counts, and recent activity. Requires the same Bearer token as ingest/retrieve.
+      responses:
+        "200":
+          description: Stats payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+        "401":
+          description: Unauthorized
+  /v1/tuning:
+    get:
+      summary: Effective runtime tuning (file + DB merge)
+      description: |
+        Returns merged algorithm and server knobs, per-key source (def | file | db), tuning file path, and raw DB override JSON. `embedding_model` is not patchable via DB; use the YAML file and POST /v1/tuning/reload.
+      operationId: get_tuning
+      responses:
+        "200":
+          description: Tuning payload
+        "401":
+          description: Unauthorized
+    patch:
+      summary: Merge DB override JSON (partial, whitelisted keys)
+      operationId: patch_tuning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Whitelisted keys only (see `configs/gvsvd.yaml`); not `embedding_model`.
+      responses:
+        "200":
+          description: Updated tuning snapshot
+        "400":
+          description: Invalid key or value
+        "401":
+          description: Unauthorized
+  /v1/tuning/reload:
+    post:
+      summary: Re-read tuning YAML and DB without process restart
+      description: SIGHUP on gvsvd performs the same merge.
+      operationId: reload_tuning
+      responses:
+        "200":
+          description: Tuning after reload
+        "400":
+          description: Merge validation failed
+        "401":
+          description: Unauthorized
+  /v1/chunks/{id}:
+    get:
+      summary: Get stored text for one memory chunk
+      description: Returns decrypted or plaintext body for a chunk in the authenticated vault. Used by the dashboard Activity view.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Chunk text and metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChunkGetResponse"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Chunk not found in this vault
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    ChunkGetResponse:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        user_id:
+          type: string
+        text:
+          type: string
+        abstract:
+          type: string
+        kind:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        source_document_id:
+          type: string
+          format: uuid
+        embedding_model_id:
+          type: string
+        created_at:
+          type: string
+        chunk_schema_version:
+          type: integer
+        ingest_session_key:
+          type: string
+    StatsResponse:
+      type: object
+      description: Output shape of GET /v1/stats
+      properties:
+        vault_id:
+          type: string
+        encryption_enabled:
+          type: boolean
+        chunks_total:
+          type: integer
+        chunks_by_user:
+          type: object
+          additionalProperties:
+            type: integer
+        ingest_events:
+          type: object
+          properties:
+            total:
+              type: integer
+            last_24h:
+              type: integer
+            last_7d:
+              type: integer
+        session_messages:
+          type: object
+          properties:
+            total:
+              type: integer
+            by_user:
+              type: object
+              additionalProperties:
+                type: integer
+        recent_activity:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              chunk_id:
+                type: string
+              event:
+                type: string
+              user_id:
+                type: string
+              created_at:
+                type: string
+    RetrieveRequest:
+      type: object
+      required: [vault_id, user_id, query]
+      properties:
+        vault_id:
+          type: string
+        user_id:
+          type: string
+        query:
+          type: string
+        max_chunks:
+          type: integer
+        max_tokens:
+          type: integer
+        session_key:
+          type: string
+          description: For session_mode "only" (required) or "prefer" (optional boost); must match session_key from ingest.
+        session_mode:
+          type: string
+          enum: [all, only, prefer]
+          default: all
+          description: "all" searches all user chunks; "only" restricts to ingest_session_key; "prefer" runs hybrid then boosts matching session.
+        content_mode:
+          type: string
+          enum: [auto, abstract, full, both, default]
+          default: auto
+          description: |
+            auto picks abstract as primary when a chunk has an abstract, else full body. abstract returns the short form; full returns body; both returns abstract in text and full long-form in full_text.
+    RetrieveResultSnippet:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        text:
+          type: string
+        score:
+          type: number
+          format: double
+        abstract:
+          type: string
+        full_text:
+          type: string
+        full_available:
+          type: boolean
+        kind:
+          type: string
+    RetrieveMeta:
+      type: object
+      required: [result_count]
+      properties:
+        result_count:
+          type: integer
+        hint:
+          type: string
+          description: Shown when result_count is zero; agent guidance.
+    RetrieveResponse:
+      type: object
+      required: [results, meta]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetrieveResultSnippet"
+        meta:
+          $ref: "#/components/schemas/RetrieveMeta"
+    IngestItem:
+      type: object
+      properties:
+        abstract:
+          type: string
+        text:
+          type: string
+        body:
+          type: string
+        kind:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    SourceDocumentIngest:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Full source document; stored once; chunks with empty body resolve full text from this row.
+        title:
+          type: string
+    IngestRequest:
+      type: object
+      required: [vault_id, user_id]
+      properties:
+        vault_id:
+          type: string
+        user_id:
+          type: string
+        session_key:
+          type: string
+        text:
+          type: string
+        abstract:
+          type: string
+        kind:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestItem"
+        source_document:
+          $ref: "#/components/schemas/SourceDocumentIngest"
+        infer:
+          type: boolean
+        infer_target:
+          type: string
+          enum: [abstract, body]
+          default: abstract
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+        idempotency_key:
+          type: string
+        debug:
+          type: boolean

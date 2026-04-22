@@ -1,0 +1,28 @@
+# GhostVault algorithm and operational tuning (static defaults in repo; override in DB for hot changes).
+# Bootstrap path: GV_Tuning_FILE (default: configs/gvsvd.yaml) — see .env.example
+
+# --- Retrieval (hybrid dense + fusion) ---
+semantic_threshold: 0.25
+fusion_lexical_weight: 0.35
+retrieve_default_max_chunks: 16
+retrieve_k_dense_min: 60
+retrieve_k_dense_multiplier: 4
+session_prefer_score_boost: 1.15
+
+# --- Ingest ---
+chunk_rune_size: 2000
+chunk_overlap: 200
+recent_session_messages_for_infer: 20
+prune_session_messages_keep: 100
+
+# --- infer=true memory extraction (OpenAI chat compatible) ---
+infer_llm_model: gpt-5.4-mini
+
+# --- Embeddings (read at process start; see GET /v1/tuning) ---
+embedding_model: text-embedding-3-small
+
+# --- Server behavior (hot-reload) ---
+max_body_bytes: 1048576
+retrieve_debug: false
+# One line per request (method, path, status, duration) — was GV_HTTP_ACCESS_LOG in compose; now here.
+http_access_log: true

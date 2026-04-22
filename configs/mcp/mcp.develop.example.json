@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "ghostvault": {
+      "command": "/ABSOLUTE/PATH/TO/GhostVault/bin/gvmcp",
+      "args": [
+        "-default-vault-id",
+        "PASTE_OUTPUT_OF_gvctl_unlock_-vault-id-only",
+        "-default-user-id",
+        "default"
+      ],
+      "env": {
+        "GHOSTVAULT_BASE_URL": "YOUR_GHOSTVAULT_SERVER_URL",
+        "GHOSTVAULT_TOKEN_FILE": "/ABSOLUTE/PATH/TO/GhostVault/.ghostvault-bearer"
+      }
+    }
+  }
+}

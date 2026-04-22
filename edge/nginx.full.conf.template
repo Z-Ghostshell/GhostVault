@@ -1,0 +1,115 @@
+# Port 8989: /api → gvsvd, /mcp-${GV_MCP_PATH_TOKEN}/ → gvmcp, /dashboard/ → dashboard container (:80).
+# Rendered by the official nginx image entrypoint (/docker-entrypoint.d/20-envsubst-on-templates.sh)
+# with NGINX_ENVSUBST_FILTER restricting substitution to ^GV_ vars, so nginx $host / $remote_addr etc.
+# stay literal. MCP endpoint is gated behind a secret path segment because Tailscale Funnel (and any
+# public HTTPS) has no auth in front of /mcp/; rotate by editing GV_MCP_PATH_TOKEN in .env and
+# recreating the edge container.
+server {
+    listen 8989;
+    server_name localhost;
+    client_max_body_size 8m;
+
+    location /api/ {
+        proxy_pass http://ghostvault:8080/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Anthropic's hosted connector POSTs to /mcp-<token> WITHOUT a trailing slash, and most
+    # HTTP clients (incl. python-httpx) refuse to follow a 301 for POST. Proxy both the
+    # exact and the slashed prefix directly to gvmcp instead of redirecting.
+    location = /mcp-${GV_MCP_PATH_TOKEN} {
+        proxy_pass http://gvmcp:3751/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /mcp-${GV_MCP_PATH_TOKEN}/ {
+        proxy_pass http://gvmcp:3751/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # RFC 9728 OAuth protected-resource metadata (when gvmcp runs with OAuth + profile mcp).
+    location = /.well-known/oauth-protected-resource {
+        proxy_pass http://gvmcp:3751/.well-known/oauth-protected-resource;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # OAuth 2.1 facade for claude.ai custom connectors. Claude ignores the RFC 9728
+    # authorization_servers field and constructs these paths on the MCP host itself
+    # (anthropics/claude-ai-mcp#82), so gvmcp serves a thin facade that 302s / proxies to
+    # the upstream IdP (Auth0). Keep these before any catch-all return blocks.
+    location = /.well-known/oauth-authorization-server {
+        proxy_pass http://gvmcp:3751/.well-known/oauth-authorization-server;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /authorize {
+        proxy_pass http://gvmcp:3751/authorize;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /token {
+        proxy_pass http://gvmcp:3751/token;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /register {
+        proxy_pass http://gvmcp:3751/register;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /mcp/ { return 404; }
+    location = /mcp { return 404; }
+
+    location /dashboard/ {
+        proxy_pass http://dashboard:80;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /dashboard {
+        return 301 /dashboard/;
+    }
+
+    location = / {
+        return 302 /dashboard/;
+    }
+}

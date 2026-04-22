@@ -1,0 +1,46 @@
+@import 'tailwindcss';
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out;
+}
+
+html {
+  color-scheme: dark;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: #05070b;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100%;
+}
+
+.gits-app-bg {
+  background-color: #05070b;
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -30%, rgba(34, 211, 238, 0.09), transparent 55%),
+    linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    28px 28px,
+    28px 28px;
+  background-position: 0 0, 0 0, 0 0;
+}

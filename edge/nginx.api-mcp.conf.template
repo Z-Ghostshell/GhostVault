@@ -1,0 +1,94 @@
+# Edge without dashboard SPA: /api + tokenized /mcp- path only (WITH_DASHBOARD=0).
+# See nginx.full.conf.template for the envsubst / token rationale.
+server {
+    listen 8989;
+    server_name localhost;
+    client_max_body_size 8m;
+
+    location /api/ {
+        proxy_pass http://ghostvault:8080/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /mcp-${GV_MCP_PATH_TOKEN} {
+        proxy_pass http://gvmcp:3751/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /mcp-${GV_MCP_PATH_TOKEN}/ {
+        proxy_pass http://gvmcp:3751/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /.well-known/oauth-protected-resource {
+        proxy_pass http://gvmcp:3751/.well-known/oauth-protected-resource;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # OAuth 2.1 facade for claude.ai custom connectors (anthropics/claude-ai-mcp#82):
+    # Claude builds /authorize, /token, /register and /.well-known/oauth-authorization-server
+    # on the MCP host, so gvmcp exposes a facade that delegates to the upstream IdP.
+    location = /.well-known/oauth-authorization-server {
+        proxy_pass http://gvmcp:3751/.well-known/oauth-authorization-server;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /authorize {
+        proxy_pass http://gvmcp:3751/authorize;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /token {
+        proxy_pass http://gvmcp:3751/token;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /register {
+        proxy_pass http://gvmcp:3751/register;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /mcp/ { return 404; }
+    location = /mcp { return 404; }
+
+    location = / {
+        default_type text/plain;
+        return 200 'Ghost Vault edge (dashboard disabled). Try GET /api/healthz\n';
+    }
+}

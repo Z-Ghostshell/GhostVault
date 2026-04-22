@@ -1,0 +1,114 @@
+# GhostVault: Postgres + gvsvd + optional gvmcp (`profile: mcp`) + dashboard SPA (`profile: dashboard`) + edge (:8989).
+# Routes: /api → gvsvd, /mcp → gvmcp, /dashboard/ → dashboard container. `make dashboard-dev` (local :5177) is separate.
+# `make up MCP=disable` / `Dashboard=disable` skip those profiles; edge image uses WITH_DASHBOARD=0 when UI is off.
+# Compose loads `.env` from the project directory automatically for variable substitution.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ghostvault
+      POSTGRES_PASSWORD: ghostvault
+      POSTGRES_DB: ghostvault
+    volumes:
+      - gv_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghostvault -d ghostvault"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  ghostvault:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://ghostvault:ghostvault@postgres:5432/ghostvault?sslmode=disable
+      GV_HTTP_ADDR: "${GV_HTTP_ADDR:-:8080}"
+      GV_ENCRYPTION: "${GV_ENCRYPTION:-on}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+      GV_Tuning_FILE: /etc/ghostvault/gvsvd.yaml
+      GV_SESSION_IDLE_MINUTES: "${GV_SESSION_IDLE_MINUTES:-60}"
+      GV_SESSION_MAX_HOURS: "${GV_SESSION_MAX_HOURS:-12}"
+      # Verbose 401/403 diagnostics on vault routes (ingest/retrieve/…): path, remote, token fingerprint.
+      # Default off for safer logs; set GV_DEBUG_AUTH=true in `.env` when troubleshooting auth.
+      GV_DEBUG_AUTH: "${GV_DEBUG_AUTH:-false}"
+      GV_DEBUG_AUTH_FULL: "${GV_DEBUG_AUTH_FULL:-false}"
+      # Consumed only when the stored vault row has auth_mode=auto_unlock. Prefer a file
+      # mount (GHOSTVAULT_PASSWORD_FILE); GHOSTVAULT_PASSWORD is kept as a dev fallback.
+      # The actual mode is stored in the DB at vault init time; these just provide material.
+      GHOSTVAULT_PASSWORD_FILE: "${GHOSTVAULT_PASSWORD_FILE:-}"
+      GHOSTVAULT_PASSWORD: "${GHOSTVAULT_PASSWORD:-}"
+    volumes:
+      - ./configs/gvsvd.yaml:/etc/ghostvault/gvsvd.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gvmcp:
+    profiles: ["mcp"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/gvmcp"]
+    command: ["-listen", ":3751"]
+    environment:
+      GHOSTVAULT_BASE_URL: http://ghostvault:8080
+      # Bearer is read from the token file mount; gvmcp re-reads that file on each gvsvd request
+      # so rotate-token updates apply without restarting gvmcp. (GHOSTVAULT_BEARER_TOKEN is not
+      # passed here to avoid host .env shadowing the file.)
+      GHOSTVAULT_TOKEN_FILE: /run/ghostvault/bearer
+      GHOSTVAULT_DEFAULT_VAULT_ID: ${GHOSTVAULT_DEFAULT_VAULT_ID:-}
+      GHOSTVAULT_DEFAULT_USER_ID: ${GHOSTVAULT_DEFAULT_USER_ID:-default}
+      # Optional OAuth (Claude → gvmcp). See docs/integration/Claude-mcp.md § OAuth 2.0 for Claude.
+      GHOSTVAULT_OAUTH_INTROSPECTION_URL: ${GHOSTVAULT_OAUTH_INTROSPECTION_URL:-}
+      GHOSTVAULT_OAUTH_AUTH_SERVER_ISSUER: ${GHOSTVAULT_OAUTH_AUTH_SERVER_ISSUER:-}
+      GHOSTVAULT_OAUTH_RESOURCE: ${GHOSTVAULT_OAUTH_RESOURCE:-}
+      GHOSTVAULT_OAUTH_METADATA_URL: ${GHOSTVAULT_OAUTH_METADATA_URL:-}
+      GHOSTVAULT_OAUTH_INTROSPECTION_CLIENT_ID: ${GHOSTVAULT_OAUTH_INTROSPECTION_CLIENT_ID:-}
+      GHOSTVAULT_OAUTH_INTROSPECTION_CLIENT_SECRET: ${GHOSTVAULT_OAUTH_INTROSPECTION_CLIENT_SECRET:-}
+      GHOSTVAULT_OAUTH_SCOPES: ${GHOSTVAULT_OAUTH_SCOPES:-}
+      GHOSTVAULT_OAUTH_SCOPES_SUPPORTED: ${GHOSTVAULT_OAUTH_SCOPES_SUPPORTED:-}
+      # OAuth 2.1 facade for claude.ai (anthropics/claude-ai-mcp#82). Audience defaults to
+      # GHOSTVAULT_OAUTH_RESOURCE; upstream URLs default to {issuer}authorize / oauth/token / oidc/register.
+      GHOSTVAULT_OAUTH_AUDIENCE: ${GHOSTVAULT_OAUTH_AUDIENCE:-}
+      GHOSTVAULT_OAUTH_UPSTREAM_AUTHORIZE_URL: ${GHOSTVAULT_OAUTH_UPSTREAM_AUTHORIZE_URL:-}
+      GHOSTVAULT_OAUTH_TOKEN_URL: ${GHOSTVAULT_OAUTH_TOKEN_URL:-}
+      GHOSTVAULT_OAUTH_REGISTRATION_URL: ${GHOSTVAULT_OAUTH_REGISTRATION_URL:-}
+      # Log gvsvd 401 explanations and bearer fingerprints on POST /v1/* from gvmcp; align with GV_DEBUG_AUTH in `.env`.
+      GHOSTVAULT_DEBUG_AUTH: "${GHOSTVAULT_DEBUG_AUTH:-false}"
+    volumes:
+      - ./.ghostvault-bearer:/run/ghostvault/bearer:ro
+    depends_on:
+      - ghostvault
+
+  dashboard:
+    profiles: ["dashboard"]
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    depends_on:
+      - ghostvault
+
+  edge:
+    build:
+      context: .
+      dockerfile: edge/Dockerfile
+      args:
+        WITH_DASHBOARD: "${WITH_DASHBOARD:-1}"
+    environment:
+      # Secret path segment guarding /mcp-<token>/ against public (Funnel) callers.
+      # Generate with `openssl rand -hex 32`; rotate by editing .env then `docker compose up -d --force-recreate edge`.
+      GV_MCP_PATH_TOKEN: "${GV_MCP_PATH_TOKEN:?GV_MCP_PATH_TOKEN must be set in .env (openssl rand -hex 32)}"
+      # Restrict envsubst to GV_ vars so nginx variables like $host stay literal.
+      NGINX_ENVSUBST_FILTER: "^GV_"
+    ports:
+      - "${EDGE_HOST_PORT:-8989}:8989"
+    depends_on:
+      - ghostvault
+
+volumes:
+  gv_pg:

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "ghostvault": {
+      "command": "/opt/homebrew/bin/npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://YOUR-PUBLIC-OR-TUNNEL-HOST/mcp/",
+        "--transport",
+        "http-only",
+        "--header",
+        "Authorization: Bearer ${GHOSTVAULT_BEARER_TOKEN}"
+      ],
+      "env": {
+        "GHOSTVAULT_BEARER_TOKEN": "YOUR_SESSION_TOKEN"
+      }
+    }
+  }
+}
