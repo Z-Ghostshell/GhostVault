@@ -1,33 +1,20 @@
 # Ghost Vault
 
-User-held **local memory replica** for LLMs: hybrid retrieval (pgvector + FTS + weighted gated fusion), **optional encryption at rest** (`GV_ENCRYPTION=on|off`, immutable per database), **OpenAPI** integrations (**ChatGPT** Actions, **Gemini** tools) via [`openapi/openapi.yaml`](openapi/openapi.yaml) (template: [`openapi/openapi.example.yaml`](openapi/openapi.example.yaml)), and **MCP** via **`gvmcp`** ([docs/integration/Claude-mcp.md](docs/integration/Claude-mcp.md)).
+[![Ghost Vault](https://raw.githubusercontent.com/Z-ghostshell/GhostVault/main/dashboard/public/favicon.svg)](https://ghostvault.bizs.app/)
 
-**CLI:** **`gvctl`** (`make ctl` → `bin/gvctl`) wraps common REST calls (`health`, `init`, `unlock`, `retrieve`, …) — `gvctl help`. **`gvmcp`** (`make mcp` → `bin/gvmcp`) is the MCP server; configure `GHOSTVAULT_BASE_URL`, `GHOSTVAULT_BEARER_TOKEN`, and optionally `GHOSTVAULT_DEFAULT_VAULT_ID` / `GHOSTVAULT_DEFAULT_USER_ID` (see MCP doc). Both binaries are also built into the Docker image under `/usr/local/bin/`.
+**Site:** [https://ghostvault.bizs.app/](https://ghostvault.bizs.app/) — product overview, tutorial (including the Anthropic remote MCP connector), and blog.
 
-## Quickstart (Docker)
+**The idea:** the durable record of your work should live in a layer *you* govern—not as a retention feature inside someone else’s cloud account. Ghost Vault is a **user-held memory service**: your notes, decisions, and context stay **on your machine** (or infra you control). The models you already use—Claude, ChatGPT, Gemini, Cursor, and the rest—connect through **open, swappable interfaces** (HTTP/OpenAPI, Model Context Protocol) so the assistant sees **your** ground truth, not a fresh session every time. Switching tools should not mean starting from zero.
 
-```bash
-make up               # .env → Postgres + gvsvd + gvmcp + dashboard container + edge (:8989)
-make logs             # follow gvsvd
-make down             # stop (volume kept)
-make dashboard-dev    # optional: local Vite on :5177 (hot reload) → same API as Docker; not the dashboard container
-```
+**What it is:** a small **Go** service plus **Postgres** (vectors + full-text), **hybrid retrieval**, and **optional encryption at rest** so ciphertext stays on disk until you unlock. Integrations are documented under [`docs/integration/`](docs/integration/) (MCP, ChatGPT Actions, Gemini, and similar).
 
-**Single entry (default `http://127.0.0.1:8989`):** **`/api`** → **`gvsvd`**, **`/mcp/`** → **`gvmcp`**, **`/dashboard/`** → **`dashboard`** container (internal **:80**). **`make dashboard-dev`** is **:5177** on the host for local development only. Postgres is not published; use `docker compose exec postgres psql -U ghostvault -d ghostvault` for SQL.
+## Run it
 
-Set secrets in [`.env.example`](.env.example) → `.env` (see [`Makefile`](Makefile)). With [direnv](https://direnv.net), use [`.envrc`](.envrc) (same idea as gis: `dotenv` loads `.env`).
+1. `make setup` — creates `.env` from [`.env.example`](.env.example) if needed; set API keys and `DATABASE_URL` as documented there.  
+2. `make up` — brings up Postgres, the vault API (`gvsvd`), an edge reverse proxy on **:8989**, and (by default) the MCP sidecar and dashboard. Use `make` to see all targets; details live in [`docs/deploy.md`](docs/deploy.md) and [`docs/README.md`](docs/README.md).
 
-## Quickstart (local `go run`)
+**Dashboard:** after `make up` (dashboard profile on by default), open **`http://127.0.0.1:8989/dashboard/`** — the edge serves **`/api`**, **`/mcp/`**, and proxies **`/dashboard/`** to the dashboard container (internal **:80**). For a **local Vite** UI with hot reload instead, run **`make dashboard-dev`** (default **:5177**, set `DASHBOARD_DEV_PORT` if needed) and point **`GHOSTVAULT_BASE_URL`** / **`GHOSTVAULT_PROXY_URL`** at your `gvsvd` (see [`.env.example`](.env.example)). With **`make up Dashboard=disable`**, use `dashboard-dev` the same way.
 
-```bash
-cp .env.example .env   # set OPENAI_API_KEY, OPENAI_BASE_URL (OpenAI-compatible), DATABASE_URL
-direnv allow           # optional
-export DATABASE_URL=postgres://ghostvault:ghostvault@localhost:5432/ghostvault?sslmode=disable
-go run ./cmd/gvsvd
-```
+**Without Docker:** copy `.env`, set `DATABASE_URL`, `go run ./cmd/gvsvd`. **MCP / IDE setup:** [docs/integration/Claude-mcp.md](docs/integration/Claude-mcp.md).
 
-**MCP (Claude Desktop, Cursor, …):** wire [docs/integration/Claude-mcp.md](docs/integration/Claude-mcp.md); use `gvctl unlock -token-only` and optionally `gvctl unlock -vault-id-only` for `GHOSTVAULT_DEFAULT_*` env vars.
-
-Docker details: [`docker-compose.yml`](docker-compose.yml) · [`edge/nginx.full.conf.template`](edge/nginx.full.conf.template) · [`docs/deploy.md`](docs/deploy.md) (tunnels, remote access). Optional services: `make up MCP=disable` and/or `Dashboard=disable` (defaults enable). **HTTP tools:** step 1 [docs/integration/OPENAPI.md](docs/integration/OPENAPI.md); step 2 [docs/integration/CHATGPT.md](docs/integration/CHATGPT.md) or [docs/integration/GEMINI.md](docs/integration/GEMINI.md).
-
-**Docs:** [docs/OVERVIEW.md](docs/OVERVIEW.md) · [docs/README.md](docs/README.md) · [gis/docs/design.md](../gis/docs/design.md) (GitS context).
+**Product and threat-model depth:** [docs/OVERVIEW.md](docs/OVERVIEW.md) · [openapi/openapi.yaml](openapi/openapi.yaml). **Related (GitS / Ghost):** [../gis/docs/design.md](../gis/docs/design.md).
